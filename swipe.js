@@ -223,6 +223,15 @@
       clearTimeout(interval);
     }
 
+    function adaptMouseEventToTouchEvent(event) {
+      event.touches = [
+        {
+          pageX: event.pageX,
+          pageY: event.pageY
+        }
+      ];
+    }
+
     // setup initial vars
     var start = {};
     var delta = {};
@@ -232,13 +241,37 @@
     var events = {
       handleEvent: function(event) {
         switch (event.type) {
+          case 'mousedown':
+            var isLeftButtonPressed = event.button === 0;
+
+            if (!isLeftButtonPressed) break;
+
+            adaptMouseEventToTouchEvent(event);
+
+            this.start(event);
+            break;
           case 'touchstart':
             this.start(event);
             break;
           case 'touchmove':
             this.move(event);
             break;
+          case 'mousemove':
+            adaptMouseEventToTouchEvent(event);
+
+            this.move(event);
+            break;
           case 'touchend':
+            offloadFn(this.end(event));
+            break;
+          case 'mouseleave':
+            adaptMouseEventToTouchEvent(event);
+
+            offloadFn(this.end(event));
+            break;
+          case 'mouseup':
+            adaptMouseEventToTouchEvent(event);
+
             offloadFn(this.end(event));
             break;
           case 'webkitTransitionEnd':
@@ -277,6 +310,13 @@
         // attach touchmove and touchend listeners
         element.addEventListener('touchmove', this, false);
         element.addEventListener('touchend', this, false);
+
+        // attach mouse events listeners
+        if (options.enableMouseEvents) {
+          element.addEventListener('mousemove', this, false);
+          element.addEventListener('mouseleave', this, false);
+          element.addEventListener('mouseup', this, false);
+        }
       },
       move: function(event) {
         // ensure swiping with one touch and not pinching
@@ -417,6 +457,13 @@
         element.removeEventListener('touchmove', events, false);
         element.removeEventListener('touchend', events, false);
         element.removeEventListener('touchforcechange', function() {}, false);
+
+        // kill mouse events listeners until touchstart or mouseup called again
+        if (options.enableMouseEvents) {
+          element.removeEventListener('mousemove', this, false);
+          element.removeEventListener('mouseleave', this, false);
+          element.removeEventListener('mouseup', this, false);
+        }
       },
       transitionEnd: function(event) {
         if (parseInt(event.target.getAttribute('data-index'), 10) == index) {
@@ -436,6 +483,11 @@
 
     // add event listeners
     if (browser.addEventListener) {
+      // set mouse event on element
+      if (options.enableMouseEvents) {
+        element.addEventListener('mousedown', events, false);
+      }
+
       // set touchstart event on element
       if (browser.touch) {
         element.addEventListener('touchstart', events, false);
@@ -515,6 +567,7 @@
         if (browser.addEventListener) {
           // remove current event listeners
           element.removeEventListener('touchstart', events, false);
+          element.removeEventListener('mousedown', events, false);
           element.removeEventListener('webkitTransitionEnd', events, false);
           element.removeEventListener('msTransitionEnd', events, false);
           element.removeEventListener('oTransitionEnd', events, false);
